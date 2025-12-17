@@ -1,0 +1,9 @@
+agency-swarm>=1.0.0
+python-dotenv
+openai>=1.0.0
+pydantic>=2.0.0
+# MCP server packages will be auto-installed by Agency Swarm:
+# - @upstash/context7-mcp
+# - exa-mcp-server
+# - @modelcontextprotocol/server-brave-search
+# Additional dependencies added by tools-creator

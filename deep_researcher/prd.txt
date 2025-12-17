@@ -1,0 +1,524 @@
+# Deep Researcher Agency - Product Requirements Document
+
+## Overview
+**Purpose**: Perform comprehensive API documentation research using multiple MCP servers to discover, evaluate, and document APIs, MCP servers, SDKs, and libraries.
+**Target Users**: Agency builders who need detailed API documentation before creating Agency Swarm agencies.
+**Key Value**: Replaces single-agent api-researcher with multi-source research capability, providing higher quality documentation with confidence scores and source citations.
+**Agent Count Justification**: 16 total MCP tools requires minimum 2 agents (9-16 tools threshold). CEO orchestrates research strategy while Deep Researcher executes all searches using 5 MCP servers.
+
+## Agency Configuration
+- **Name**: deep_researcher (lowercase with underscores)
+- **Pattern**: Orchestrator-Workers
+- **Entry Agent**: CEO (receives user concept, coordinates research)
+
+## Agents
+
+### Agent 1: CEO (Entry Point)
+- **Folder Name**: ceo (snake_case)
+- **Instance Name**: ceo (snake_case)
+- **Agent Name**: "CEO" (PascalCase in Agent() call)
+- **Description**: Research orchestrator who receives user concepts, breaks down research into phases, delegates to Deep Researcher, and synthesizes final documentation
+- **Primary Responsibilities**:
+  1. Parse user concepts to identify research requirements (MCP servers, REST APIs, SDKs, libraries)
+  2. Create research strategy following broad-to-narrow methodology (survey → evaluate → document)
+  3. Delegate specific research tasks to Deep Researcher with clear search parameters
+  4. Synthesize research results into structured output format
+  5. Assess research quality, identify gaps, and request additional searches as needed
+- **Tools** (0 MCP tools, built-in only):
+  - Built-in: SendMessage (delegate to deep_researcher)
+- **API Keys Required**: OPENAI_API_KEY
+
+### Agent 2: Deep Researcher
+- **Folder Name**: deep_researcher (snake_case)
+- **Instance Name**: deep_researcher (snake_case)
+- **Agent Name**: "Deep Researcher" (PascalCase in Agent() call)
+- **Description**: Research execution specialist with access to 5 MCP servers for comprehensive API documentation gathering, evaluation, and extraction
+- **Primary Responsibilities**:
+  1. Execute web searches using Brave Search and Exa for API discovery
+  2. Fetch GitHub repository documentation using DeepWiki
+  3. Query library documentation using Context7 (33K+ libraries)
+  4. Extract content from URLs using Jina AI reader
+  5. Perform semantic searches and deep research with Exa
+  6. Return structured results with confidence scores and source URLs
+- **Tools** (16 total MCP tools):
+  - MCP: DeepWiki → ask_question, read_wiki_structure, read_wiki_contents
+  - MCP: Context7 → resolve-library-id, get-library-docs
+  - MCP: Exa → web_search_exa, deep_search_exa, get_code_context_exa, crawling_exa, company_research_exa, research_paper_search, linkedin_search_exa
+  - MCP: Jina AI → read_url, search
+  - MCP: Brave Search → brave_web_search, brave_local_search
+  - Built-in: SendMessage (return results to ceo)
+- **API Keys Required**:
+  - OPENAI_API_KEY (required)
+  - EXA_API_KEY (required)
+  - BRAVE_API_KEY (required)
+  - CONTEXT7_API_KEY (optional, for private docs)
+  - JINA_API_KEY (optional, increases rate limits)
+
+## Communication Flows
+```python
+communication_flows = [
+    (ceo, deep_researcher),  # CEO delegates research tasks to deep_researcher
+]
+```
+
+**Flow Justification**: Simple orchestrator-worker pattern. CEO breaks down research strategy and delegates specific searches. Deep Researcher executes and returns findings. No need for deep_researcher → ceo flow as responses automatically return to sender.
+
+## Tool Specifications
+
+### MCP Server Tools
+| Agent | MCP Server | Tools | Purpose |
+|-------|------------|-------|---------|
+| deep_researcher | DeepWiki | ask_question, read_wiki_structure, read_wiki_contents | GitHub repository documentation extraction |
+| deep_researcher | Context7 | resolve-library-id, get-library-docs | Library documentation for 33K+ libraries |
+| deep_researcher | Exa | web_search_exa, deep_search_exa, get_code_context_exa, crawling_exa, company_research_exa, research_paper_search, linkedin_search_exa | Semantic web search, code context, deep research |
+| deep_researcher | Jina AI | read_url, search | URL-to-markdown conversion, web search with full content |
+| deep_researcher | Brave Search | brave_web_search, brave_local_search | General web search, baseline API discovery |
+
+### MCP Server Configuration Details
+
+**DeepWiki MCP**:
+- URL: https://mcp.deepwiki.com/sse (remote SSE server)
+- No API key required for public GitHub repos
+- Best for: Official documentation from GitHub repositories
+
+**Context7 MCP**:
+- Package: @upstash/context7-mcp
+- API key: CONTEXT7_API_KEY (optional)
+- Best for: Python, JavaScript, Java, Go library documentation
+
+**Exa MCP**:
+- Package: exa-mcp-server
+- API key: EXA_API_KEY (required)
+- Cost: ~$20/month for typical usage
+- Best for: Semantic search, code examples, deep research with summaries
+
+**Jina AI MCP**:
+- URL: https://mcp.jina.ai (remote server)
+- API key: JINA_API_KEY (optional, 10M free tokens)
+- Best for: Converting web pages to clean markdown, bypassing paywalls
+
+**Brave Search MCP**:
+- Package: @modelcontextprotocol/server-brave-search
+- API key: BRAVE_API_KEY (required, 2K free searches/month)
+- Best for: General web search baseline, finding API landing pages
+
+### Custom Tools
+**None required** - All functionality covered by MCP servers.
+
+## Workflow Examples
+
+### Example 1: Discovering MCP Servers for GitHub Management
+**User Input**: "I need to build an agency that manages GitHub issues and pull requests"
+
+**Flow**:
+1. CEO receives request, identifies needs: GitHub API integration
+2. CEO creates research plan:
+   - Phase 1: Find existing MCP servers for GitHub
+   - Phase 2: Check official GitHub REST API
+   - Phase 3: Evaluate SDKs (Octokit, PyGithub)
+3. CEO delegates to Deep Researcher: "Search for Model Context Protocol servers that provide GitHub integration tools"
+4. Deep Researcher uses:
+   - brave_web_search: "MCP server GitHub integration"
+   - web_search_exa: "Model Context Protocol GitHub tools"
+   - read_url (Jina): Extract docs from found MCP servers
+5. Deep Researcher returns: "@modelcontextprotocol/server-github - provides 15 tools for issues, PRs, repos"
+6. CEO delegates: "Get detailed documentation for the GitHub MCP server"
+7. Deep Researcher uses:
+   - ask_question (DeepWiki): Query GitHub MCP repo docs
+   - read_wiki_structure (DeepWiki): Get full table of contents
+8. Deep Researcher returns: Complete tool list with parameters and examples
+9. CEO synthesizes into api_docs/ structure:
+   - readme.md: Overview with confidence score (High)
+   - mcp_servers/github_mcp.md: Complete documentation
+10. CEO presents to user: "Found 1 MCP server with 15 tools. Ready for PRD creation."
+
+### Example 2: Library Documentation Research
+**User Input**: "I need documentation for the Stripe Python library"
+
+**Flow**:
+1. CEO identifies: Python library research needed
+2. CEO delegates to Deep Researcher: "Find documentation for stripe-python library"
+3. Deep Researcher uses:
+   - resolve-library-id (Context7): "stripe-python" → Context7 ID
+   - get-library-docs (Context7): Fetch current documentation
+4. Deep Researcher returns: API reference, code examples, authentication docs
+5. CEO validates completeness, identifies gap: webhook handling
+6. CEO delegates: "Search for Stripe webhook implementation examples"
+7. Deep Researcher uses:
+   - get_code_context_exa: "stripe webhook python examples"
+   - deep_search_exa: "stripe webhook best practices"
+8. Deep Researcher returns: Code examples with explanations
+9. CEO creates:
+   - sdks/stripe_python.md: Complete library docs with examples
+   - readme.md: Updated with library entry
+10. CEO confirms: "Documentation complete with confidence: High"
+
+### Example 3: Error Handling - No MCP Server Found
+**Scenario**: User asks for obscure API with no MCP server
+
+**Flow**:
+1. CEO receives: "Build agency for MyObscureAPI"
+2. CEO delegates to Deep Researcher: "Search for MCP servers for MyObscureAPI"
+3. Deep Researcher uses:
+   - brave_web_search: No results
+   - web_search_exa: No MCP servers found
+4. Deep Researcher returns: "No MCP servers found for MyObscureAPI"
+5. CEO pivots strategy, delegates: "Find REST API documentation for MyObscureAPI"
+6. Deep Researcher uses:
+   - deep_search_exa: Finds API landing page
+   - read_url (Jina): Extracts documentation
+7. Deep Researcher returns: REST API endpoints, authentication method
+8. CEO creates:
+   - rest_apis/myobscureapi.md: Documented endpoints
+   - readme.md: Notes "Custom tools required - no MCP server available"
+9. CEO reports to user: "No MCP server exists. Found REST API. Will need custom tools."
+
+### Example 4: Multi-Source Synthesis
+**User Input**: "Research everything about the Anthropic Claude API"
+
+**Flow**:
+1. CEO creates comprehensive research plan:
+   - MCP servers for Claude
+   - Official API documentation
+   - Python SDK (anthropic-sdk)
+   - Code examples and best practices
+2. CEO delegates parallel searches:
+   - "Find MCP servers for Anthropic Claude"
+   - "Get documentation for anthropic Python SDK"
+   - "Find Claude API code examples"
+3. Deep Researcher executes all searches:
+   - brave_web_search + web_search_exa: Finds MCP servers
+   - resolve-library-id + get-library-docs (Context7): Gets SDK docs
+   - get_code_context_exa: Finds implementation examples
+   - read_url (Jina): Extracts official API reference
+4. Deep Researcher returns all findings with sources
+5. CEO synthesizes:
+   - mcp_servers/anthropic_mcp.md: MCP server documentation
+   - sdks/anthropic_python.md: SDK reference and examples
+   - rest_apis/claude_api.md: Direct API endpoints
+   - readme.md: Comprehensive overview with recommendation
+6. CEO recommendation: "Use @anthropic-ai/mcp-server-anthropic (12 tools). SDK available for custom tools if needed."
+
+## Output Structure
+
+All research output is saved to `api_docs/` directory:
+
+```
+api_docs/
+├── readme.md                    # Overview of all discovered APIs with recommendations
+├── mcp_servers/                 # MCP server documentation
+│   ├── server_name_1.md
+│   └── server_name_2.md
+├── rest_apis/                   # REST API documentation
+│   ├── api_name_1.md
+│   └── api_name_2.md
+├── sdks/                        # SDK documentation
+│   ├── library_name_1.md
+│   └── library_name_2.md
+└── schemas/                     # Extracted OpenAPI/GraphQL schemas
+    ├── api_name_schema.json
+    └── api_name_schema.yaml
+```
+
+### readme.md Format
+```markdown
+# API Research Results
+
+**Research Date**: YYYY-MM-DD
+**User Concept**: [Original user request]
+**Overall Confidence**: High | Medium | Low
+
+## Summary
+[2-3 sentence overview of findings]
+
+## Recommendations
+1. **Primary Solution**: [MCP server name] - [why it's best]
+2. **Alternative**: [If applicable]
+3. **Custom Tools Needed**: [If no MCP exists]
+
+## Discovered APIs
+
+### MCP Servers
+| Name | Tools Count | Purpose | Status | Confidence |
+|------|-------------|---------|--------|------------|
+| server-name | 15 | GitHub management | Active | High |
+
+### REST APIs
+| Name | Endpoints | Auth Method | Documentation | Confidence |
+|------|-----------|-------------|---------------|------------|
+| API Name | 25+ | OAuth 2.0 | Complete | High |
+
+### SDKs/Libraries
+| Name | Language | Maintenance | Documentation | Confidence |
+|------|----------|-------------|---------------|------------|
+| library-name | Python | Active | Excellent | High |
+
+## Sources
+- [Source 1 URL]
+- [Source 2 URL]
+```
+
+### Individual Documentation Format
+Each `.md` file in subdirectories follows this structure:
+
+```markdown
+# [API/Server/SDK Name]
+
+**Type**: MCP Server | REST API | SDK
+**Source**: [URL]
+**Last Updated**: YYYY-MM-DD
+**Maintenance Status**: Active | Maintained | Deprecated
+**Confidence Score**: High | Medium | Low
+
+## Overview
+[Description and primary use cases]
+
+## Authentication
+[Auth method, required keys, setup instructions]
+
+## Tools/Endpoints (for MCP/REST)
+### Tool/Endpoint Name
+- **Purpose**: [What it does]
+- **Parameters**: [Input parameters with types]
+- **Returns**: [Output format]
+- **Example**: [Code example]
+
+## Installation (for SDKs)
+```language
+[Installation command]
+```
+
+## Code Examples
+[Relevant code snippets]
+
+## Integration Notes
+[How to use in Agency Swarm]
+- API keys needed: [List]
+- MCP server setup: [If applicable]
+- Custom tool requirements: [If needed]
+
+## Limitations
+[Rate limits, restrictions, costs]
+
+## Additional Resources
+- [Documentation URLs]
+- [GitHub repos]
+- [Community resources]
+```
+
+## Research Methodology
+
+The CEO employs a **broad-to-narrow** research strategy:
+
+1. **Survey Phase** (Broad):
+   - Search for MCP servers first (preferred solution)
+   - Search for official APIs and SDKs
+   - Gather multiple options
+
+2. **Evaluation Phase** (Narrow):
+   - Assess maintenance status (last updated, active development)
+   - Check documentation quality
+   - Evaluate tool completeness
+   - Compare alternatives
+
+3. **Documentation Phase** (Deep):
+   - Extract detailed documentation
+   - Test example code validity
+   - Identify integration requirements
+   - Document limitations and costs
+
+4. **Synthesis Phase** (Output):
+   - Create structured documentation
+   - Assign confidence scores
+   - Provide clear recommendations
+   - List all required API keys
+
+## Confidence Scoring
+
+**High Confidence**:
+- Official MCP server or well-maintained third-party
+- Active development (updated within 6 months)
+- Complete documentation with examples
+- Clear integration path
+
+**Medium Confidence**:
+- Working solution but limited maintenance
+- Documentation exists but incomplete
+- Some custom work required
+- Unclear pricing or rate limits
+
+**Low Confidence**:
+- Deprecated or unmaintained
+- Poor/missing documentation
+- Significant custom development needed
+- High uncertainty about implementation
+
+## Dependencies
+
+### Required API Keys
+- **OPENAI_API_KEY**: Required for all agents
+  - Obtain from: https://platform.openai.com/api-keys
+  - Used for: Agent reasoning and tool execution
+- **EXA_API_KEY**: Required for semantic search
+  - Obtain from: https://exa.ai/
+  - Used for: Deep research, code context, semantic web search
+  - Cost: ~$20/month for typical usage
+- **BRAVE_API_KEY**: Required for general web search
+  - Obtain from: https://brave.com/search/api/
+  - Used for: Baseline API discovery, finding landing pages
+  - Cost: Free tier 2K searches/month
+
+### Optional API Keys
+- **CONTEXT7_API_KEY**: Optional for library docs
+  - Obtain from: https://context7.com/
+  - Used for: Enhanced library documentation access
+  - Free tier available
+- **JINA_API_KEY**: Optional for URL reading
+  - Obtain from: https://jina.ai/
+  - Used for: Increased rate limits on URL-to-markdown
+  - Free: 10M tokens/month
+
+### Python Packages
+- agency-swarm>=1.0.0
+- python-dotenv
+- MCP server packages (auto-installed by Agency Swarm):
+  - @upstash/context7-mcp
+  - exa-mcp-server
+  - @modelcontextprotocol/server-brave-search
+
+### Environment Setup
+```env
+OPENAI_API_KEY=sk-...
+EXA_API_KEY=...
+BRAVE_API_KEY=...
+CONTEXT7_API_KEY=...  # Optional
+JINA_API_KEY=...      # Optional
+```
+
+## Success Metrics
+
+### Functional Requirements
+- [ ] CEO correctly parses user concepts into research requirements
+- [ ] Deep Researcher executes searches using appropriate MCP servers
+- [ ] All 5 MCP servers initialize and connect correctly
+- [ ] Communication flow (CEO → Deep Researcher) works bidirectionally
+- [ ] Output files created in correct api_docs/ structure
+
+### Quality Requirements
+- [ ] Research completeness: All mentioned APIs/libraries documented
+- [ ] Confidence scores assigned with clear justification
+- [ ] Source URLs included for all findings
+- [ ] Code examples validated and tested
+- [ ] Clear recommendations provided in readme.md
+
+### Performance Requirements
+- [ ] Initial research completes within 5 minutes for typical request
+- [ ] Error messages are clear and actionable
+- [ ] MCP server failures handled gracefully with fallback options
+- [ ] Response time per search: <30 seconds
+
+### Integration Requirements
+- [ ] Output format compatible with prd-creator agent
+- [ ] API keys documented with acquisition URLs
+- [ ] MCP server setup instructions included
+- [ ] Cost estimates provided for paid services
+
+## Parallel Creation Notes
+
+This PRD enables parallel execution by three agents:
+
+### For agent-creator:
+- Create folder structure:
+  - ceo/ with ceo.py
+  - deep_researcher/ with deep_researcher.py
+  - agency.py with communication_flows
+  - shared_instructions.md
+  - .env template
+  - requirements.txt
+- CEO has no MCP servers (orchestrator only)
+- Deep Researcher has 5 MCP servers configured
+- Use gpt-5.2 model with "high" reasoning effort for CEO
+- Use gpt-5.2 model with "medium" reasoning effort for Deep Researcher
+
+### For instructions-writer:
+- CEO instructions focus on:
+  - Research strategy and planning
+  - Broad-to-narrow methodology
+  - Task delegation with clear parameters
+  - Results synthesis and quality assessment
+  - Output formatting to api_docs/ structure
+- Deep Researcher instructions focus on:
+  - Tool selection based on research type
+  - Executing searches with proper parameters
+  - Returning structured results with confidence scores
+  - Handling API errors and rate limits
+  - Source citation and URL extraction
+
+### For tools-creator:
+- No custom tools required - all functionality via MCP servers
+- Configure 5 MCP servers for deep_researcher:
+  1. DeepWiki: Remote SSE (https://mcp.deepwiki.com/sse)
+  2. Context7: NPM package (@upstash/context7-mcp)
+  3. Exa: NPM package (exa-mcp-server)
+  4. Jina AI: Remote (https://mcp.jina.ai)
+  5. Brave Search: NPM package (@modelcontextprotocol/server-brave-search)
+- Test each MCP server connection independently
+- Verify API keys are loaded from .env correctly
+- Ensure error handling for missing/invalid keys
+
+## Design Decisions
+
+### Why 2 Agents (Not 1)?
+- 16 total tools exceeds 8-tool threshold for single agent
+- Clear separation: strategy (CEO) vs. execution (Deep Researcher)
+- CEO needs to synthesize results from multiple searches
+- Better error handling with orchestrator reviewing execution results
+
+### Why Not 3+ Agents?
+- All research tools are complementary, not separate domains
+- Splitting by MCP server would create artificial boundaries
+- 16 tools fits comfortably in 2-agent architecture (9-16 range)
+- Adding agents would increase complexity without benefit
+
+### Why Orchestrator-Workers Pattern?
+- CEO needs to control research strategy and phasing
+- Deep Researcher executes but doesn't decide what to search
+- No need for researcher-to-researcher collaboration
+- Simple delegation model matches research workflow
+
+### Why These Specific MCP Servers?
+- **DeepWiki**: Best for GitHub repo documentation (free)
+- **Context7**: Covers 33K+ library docs (free)
+- **Exa**: Semantic search superior to keyword search (paid but essential)
+- **Jina AI**: URL-to-markdown essential for extracting docs (mostly free)
+- **Brave Search**: Baseline web search, required discovery phase (free tier)
+
+### Why No Custom Tools?
+- All research needs covered by MCP servers
+- Custom tools would duplicate MCP functionality
+- Maintenance burden: MCP servers updated by providers
+- Integration: MCP servers already Agency Swarm compatible
+
+## Replacement Strategy
+
+This agency replaces the single `api-researcher` agent:
+
+### Migration Path
+1. Keep api-researcher agent until deep_researcher is tested
+2. Test deep_researcher with same queries used by api-researcher
+3. Compare output quality and completeness
+4. Once validated, update orchestrator to call deep_researcher agency
+5. Archive api-researcher agent
+
+### Key Improvements Over Single Agent
+- **Multi-source research**: 5 MCP servers vs. 1-2 tools
+- **Better documentation**: Structured output with confidence scores
+- **Semantic search**: Exa provides context-aware search vs. keyword only
+- **Library coverage**: Context7 covers 33K+ libraries automatically
+- **GitHub docs**: DeepWiki extracts repo documentation natively
+- **Quality assessment**: CEO synthesizes and scores findings
+
+### Backward Compatibility
+- Output format (api_docs/) remains compatible with prd-creator
+- readme.md includes same recommendation structure
+- Can be drop-in replacement in existing workflows

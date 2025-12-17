@@ -1,0 +1,519 @@
+---
+description: AI Agent Creator Instructions for Agency Swarm Framework
+alwaysApply: true
+---
+
+# Agent Swarm Agent Creator Instructions
+
+Agency Swarm is the framework built on the OpenAI Agents SDK. It allows anyone to create a collaborative swarm of agents (Agencies), each with distinct roles and capabilities. Your primary role is to architect tools and agents that fulfill specific needs within the agency.
+
+## Prompt Engineering Insights
+
+Based on Anthropic's research, apply these principles:
+
+1. **Planning First**: Always plan and research before implementation
+2. **XML Tags**: Use XML structure for agent instructions (`<role>`, `<task>`, `<examples>`)
+3. **Positive Instructions**: Tell agents what TO DO, not what NOT to do
+4. **Tool Descriptions**: Descriptions are THE most important element for tool use
+5. **Concrete Examples**: Include success + error case examples for each agent
+6. **Anti-Sycophancy**: Agents should respond directly without praise adjectives
+
+## Workflow Steps
+
+0. **Setup**: Create a to-do list and activate virtual environment
+1. **Project Exploration**: Understand existing structure, check for PRD
+2. **Folder Structure**: Create agent templates using CLI commands
+3. **Tool Development**: Create MCP integrations and custom tools
+4. **Agent Creation**: Create agent classes with XML-structured instructions
+5. **Agency Creation**: Define communication flows in agency.py
+6. **Testing**: Test each tool and the complete agency
+7. **Iteration**: Refine based on test results until quality score ≥8/10
+
+Read this entire file before proceeding.
+
+# Step 1: Project Exploration
+
+Before starting, understand the current project state and prepare for agent creation.
+
+## Exploration Checklist
+
+1. **Activate virtual environment**: Check if venv exists, create if needed
+2. **Check root directory**: List files and folders
+3. **Look for PRD**: Check for `prd.txt` in root
+4. **Check for example agents**: Look for `example_agent/` folders
+5. **Review existing files**: Read agency.py, instructions.md, tools/
+
+## Actions Required
+
+### If PRD exists:
+- Read entire `prd.txt` to understand agency structure
+- Verify agent roles are realistic (modeled after job positions)
+- Confirm tool specifications are clear
+- Proceed to Step 2
+
+### If PRD does not exist:
+- Analyze if user provided sufficient information
+- Ask clarifying questions if needed:
+  - "Which systems does the agent need to connect to?"
+  - "What processes does the agent need to perform?"
+- Use broad-to-narrow research: survey options before narrowing focus
+- Proceed with workflow after gathering details
+
+### If example agents exist:
+- **Remove all example agent folders**: Delete `example_agent/` completely
+- **Clean up agency.py**: Remove example imports and flows
+
+### If external connections needed:
+- Check if user has added API keys to .env
+- Ask for API keys before proceeding
+- Do not test until keys are added
+
+# Step 2: Folder Structure and Template Creation
+
+Setup the folder structure for each agent:
+
+```
+├── agent_name/
+│   ├── __init__.py
+│   ├── agent_name.py
+│   ├── instructions.md
+│   ├── files/
+│   └── tools/
+│       ├── ToolName.py
+│       └── ...
+├── agency.py
+├── shared_instructions.md
+├── requirements.txt
+└── .env
+```
+
+**Rules:**
+- Agency folder: lowercase with underscores
+- Each agent has dedicated folder with tools/, instructions.md, __init__.py
+- Tools auto-import when placed in tools/ folder
+- Add new requirements to requirements.txt
+- Create .env with OPENAI_API_KEY placeholder
+
+**Create agent template:**
+```bash
+agency-swarm create-agent-template --description "Description" --model "gpt-5.2" --reasoning "medium" "agent_name"
+```
+
+**Agent template output:**
+```python
+from agency_swarm import Agent, ModelSettings
+from openai.types.shared import Reasoning
+
+agent_name = Agent(
+    name="agent_name",
+    description="Description of the agent",
+    instructions="./instructions.md",
+    files_folder="./files",
+    tools_folder="./tools",
+    model="gpt-5.2",
+    model_settings=ModelSettings(
+        reasoning=Reasoning(effort="medium", summary="auto"),
+    ),
+)
+```
+
+**Notes:**
+- Use `gpt-5.2` model for all agents (latest available)
+- Prefer CLI command over manual file creation
+- Use "high" reasoning effort for complex analysis agents
+
+### Best Practices for Agent Structures
+
+- **Realistic Roles**: Model after actual job positions
+  - ✅ Good: "Data Analyst", "Campaign Manager", "Financial Advisor"
+  - ❌ Bad: "Chart Creator", "Email Sender", "Report Generator"
+- **Minimize Agent Count**: Start with 1 agent, add more only if necessary
+- **Role Consolidation**: If agents always work together, combine them
+
+# Step 3: Tool Creation
+
+Tools are specific actions agents can perform:
+- MCP servers (preferred)
+- Custom tools wrapping API calls
+- Built-in tools (WebSearchTool, ImageGenerationTool)
+- Local file tools (IPythonInterpreter, PersistentShellTool)
+
+**Key characteristics:**
+- **Standalone**: Run independently with minimal dependencies
+- **Configurable**: Expose adjustable parameters
+- **Composable**: Output format matches input format of other tools
+
+### Custom Tool Template
+
+**CRITICAL: Tool descriptions are THE most important element. Write detailed descriptions.**
+
+```python
+from agency_swarm.tools import BaseTool
+from pydantic import Field
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class MyCustomTool(BaseTool):
+    """Clear, detailed description of what this tool does and WHEN to use it.
+
+    Use this tool when you need to [specific use case].
+    Do NOT use this tool for [anti-patterns].
+
+    Returns: [Description of return format for parsing]
+    """
+
+    example_field: str = Field(
+        ...,
+        description="Detailed description of this field, explaining purpose and valid values"
+    )
+
+    def run(self):
+        """Execute the tool's main functionality."""
+        # Step 1: Get API credentials
+        api_key = os.getenv("MY_API_KEY")
+        if not api_key:
+            return "Error: MY_API_KEY not configured. Add it to .env file."
+
+        try:
+            # Step 2: Perform operation
+            result = self._perform_operation()
+
+            # Step 3: Return formatted result
+            return f"Success: {result}"
+
+        except Exception as e:
+            return f"Error: {str(e)}. Try [recovery suggestion]."
+
+    def _perform_operation(self):
+        """Internal method for main logic."""
+        return "operation result"
+
+
+if __name__ == "__main__":
+    tool = MyCustomTool(example_field="test")
+    print(tool.run())
+```
+
+### Tool Description Guidelines
+
+**Good Description:**
+```python
+"""Fetch customer data from CRM by customer ID.
+
+Use this tool when you need to retrieve customer profile information
+including contact details, purchase history, and preferences.
+
+Do NOT use this tool for bulk exports - use BatchExportTool instead.
+
+Input: customer_id must be a valid UUID
+Returns: JSON with {name, email, phone, purchases: [...]}
+"""
+```
+
+**Bad Description:**
+```python
+"""Get customer data."""  # Too vague
+```
+
+### Agency Context (Shared State)
+
+```python
+from agency_swarm.tools import BaseTool
+
+class MyTool(BaseTool):
+    value: str = Field(..., description="Value to store")
+
+    def run(self):
+        self._context.set("my_key", self.value)
+        data = self._context.get("my_key", "default")
+        return data
+```
+
+### MCP Tools (Preferred)
+
+```python
+from agents.mcp import MCPServerStdio
+
+filesystem_server = MCPServerStdio(
+    name="Filesystem_Server",
+    params={
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+    },
+    cache_tools_list=True
+)
+# Attach: my_agent = Agent(..., mcp_servers=[filesystem_server])
+```
+
+**Important**: Prefer MCP servers over custom tools for common platforms.
+
+### Built-in Tools
+
+```python
+from agency_swarm.tools import WebSearchTool, ImageGenerationTool, PersistentShellTool, IPythonInterpreter
+
+tools = [WebSearchTool(), ImageGenerationTool(), PersistentShellTool, IPythonInterpreter]
+```
+
+### Tool Best Practices
+
+- **Real-World Actions Only**: Perform specific, realistic actions
+  - ✅ Good: "FetchInstagramLeads", "QueryDatabase", "SendSlackNotification"
+  - ❌ Bad: "OptimizeText", "AnalyzeData", "MakeDecision"
+- **Comments**: Well-commented code with step-by-step explanations
+- **Production-Ready**: No placeholders or hypothetical examples
+- **No API Keys as Inputs**: Retrieve from environment variables
+- **Don't Return Too Much**: Avoid large files or base64 images
+- **Include Test Cases**: Add `if __name__ == "__main__":` block
+- **Keep Single-Purpose**: Create atomic tools, let agent combine them
+
+# Step 4: Instructions Writing (XML Format)
+
+Each agent needs an `instructions.md` file using XML structure for better parsing:
+
+```markdown
+<role>
+You are a **[specific role with expertise]** responsible for [primary function].
+Your expertise includes [specific skills].
+</role>
+
+<context>
+You are part of the **[agency name]** agency.
+
+**Your Position**:
+- Entry point: [Yes/No]
+- Reports to: [agent/None]
+- Delegates to: [list of agents]
+
+**Your outputs will be used for**: [downstream purpose]
+</context>
+
+<task>
+Your primary task is to **[main objective]**.
+
+Specific responsibilities:
+1. [Measurable responsibility 1]
+2. [Measurable responsibility 2]
+3. [Measurable responsibility 3]
+
+Quality expectations:
+- [Criterion with threshold]
+</task>
+
+<tools>
+You have access to these tools:
+
+**MCP Server Tools**:
+- `[Server_Name].[tool_name]`: [When to use]
+
+**Built-in Tools**:
+- `SendMessage`: Contact other agents when [conditions]
+
+**Custom Tools**:
+- `[ToolName]`: [Purpose and when to use]
+</tools>
+
+<instructions>
+1. **Receive and Parse Request**
+   - Identify [specific elements]
+   - Validate request contains: [required fields]
+
+2. **Plan Approach**
+   - Consider what information is needed
+   - Determine which tools to use
+
+3. **Execute Task**
+   - Use `[Tool1]` to [specific action]
+   - If [condition]: Use `[Tool2]`
+   - Validate results meet [criteria]
+
+4. **Quality Check**
+   - Verify output includes [required elements]
+   - Ensure format matches [specification]
+
+5. **Respond**
+   - Format output as specified
+   - If delegating: Use `SendMessage` to [target]
+</instructions>
+
+<output_format>
+Structure responses as:
+```json
+{
+  "status": "success" | "error",
+  "data": {...},
+  "summary": "[Description]"
+}
+```
+
+For errors:
+```json
+{
+  "status": "error",
+  "error_type": "[category]",
+  "message": "[Explanation]",
+  "suggestion": "[Recovery action]"
+}
+```
+</output_format>
+
+<examples>
+<example name="successful_scenario">
+**Input**: "[Sample request]"
+
+**Process**:
+1. Parsed request, identified: [elements]
+2. Used `[Tool1]` to retrieve [data]
+3. Validated results
+
+**Output**:
+```json
+{"status": "success", "data": {...}, "summary": "..."}
+```
+</example>
+
+<example name="error_handling">
+**Input**: "[Invalid request]"
+
+**Process**:
+1. Detected issue: [problem]
+2. Prepared error response
+
+**Output**:
+```json
+{"status": "error", "message": "...", "suggestion": "..."}
+```
+</example>
+</examples>
+
+<guidelines>
+- Respond directly without starting with praise adjectives
+- Verify corrections before accepting them
+- Maintain consistent output format
+- Handle errors gracefully with suggestions
+</guidelines>
+```
+
+### Instructions Best Practices
+
+- **Use XML Tags**: Structure with `<role>`, `<task>`, `<examples>`, etc.
+- **Be Specific**: Explicitly state outputs and formats
+- **Provide Examples**: At least 2 per agent (success + error)
+- **Positive Instructions**: "Do this" not "Don't do that"
+- **Integrate Tools**: Show when/how to use each tool
+- **Anti-Sycophancy**: No praise adjectives in responses
+- **Iterate**: Refine based on test results
+
+# Step 5: Agency Creation
+
+Agencies are collections of agents defined in `agency.py`:
+
+```python
+from dotenv import load_dotenv
+from agency_swarm import Agency
+from ceo import ceo
+from developer import developer
+
+load_dotenv()
+
+
+def create_agency(load_threads_callback=None):
+    """Create and return the agency instance.
+
+    Required for deployment.
+    """
+    agency = Agency(
+        ceo,  # Entry point
+        communication_flows=[
+            (ceo, developer),
+        ],
+        shared_instructions="shared_instructions.md",
+    )
+    return agency
+
+
+if __name__ == "__main__":
+    agency = create_agency()
+    agency.terminal_demo()
+```
+
+**Key Points:**
+- `create_agency()` method is required for deployment
+- First argument is entry point for user communication
+- Communication flows are directional (left → right)
+
+**Shared Instructions** (`shared_instructions.md`):
+```markdown
+# Agency Manifesto
+
+## Mission
+[Agency mission - what it accomplishes]
+
+## Working Principles
+1. Clear communication between agents
+2. Efficient task delegation
+3. Quality output delivery
+4. Graceful error handling
+
+## Standards
+- Validate inputs before processing
+- Handle errors with informative messages
+- Keep communication concise
+- Prefer MCP servers over custom tools
+```
+
+# Step 6: Testing
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Test each tool:**
+   ```bash
+   python agent_name/tools/tool_name.py
+   ```
+   Fix any errors before proceeding.
+
+3. **Test the agency:**
+   ```bash
+   python -c "from agency import create_agency; agency = create_agency(); print(agency.get_response_sync('your question here'))"
+   ```
+
+**Important**: Continue iterating until all tools and agents work correctly. Do not wait for user confirmation.
+
+# Step 7: Iteration
+
+Repeat steps based on test results until agency performs consistently:
+
+1. **Analyze failures**: Identify which component failed
+2. **Fix tools first**: If tool execution failed
+3. **Adjust instructions**: If agent behavior was wrong
+4. **Re-test**: Verify fixes worked
+5. **Document**: Track what changed and why
+
+Continue until:
+- All tools execute correctly
+- Agent responses are accurate
+- Quality score ≥8/10
+- No critical issues remain
+
+# Final Notes
+
+1. NEVER output code snippets in chat - create actual files
+2. No placeholders or hypothetical examples - production-ready code only
+3. Test all tools before submitting
+4. Follow file creation order rigorously
+5. Create to-do list before starting
+6. Confirm venv is activated before coding
+7. Fetch Agency Swarm docs if needed for clarification
+8. Latest OpenAI model is `gpt-5.2` - already available
+
+# References
+
+- [Creating PRD](.cursor/commands/create-prd.md)
+- [Adding MCP Servers](.cursor/commands/add-mcp.md)
+- [Writing Instructions](.cursor/commands/write-instructions.md)
+- [Agency Swarm Documentation](https://agency-swarm.ai/llms.txt)
